@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Page - Face Recognition</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Secure Page - Face Recognition</h1>
+        <div class="video-container">
+            <video id="video" autoplay></video>
+        </div>
+        <div id="output"></div>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const output = document.getElementById('output');
+
+        // Solicitar acceso a la cámara
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+                // Comenzar la detección continua
+                detectFace();
+            })
+            .catch(err => {
+                console.error('Error accessing webcam: ', err);
+            });
+
+        function detectFace() {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('image', blob, 'capture.jpg');
+
+                fetch('/secure_page_login', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    output.textContent = data.result === 'success' ? 'Welcome William' : 'Authentication failed';
+                    output.style.color = data.result === 'success' ? 'green' : 'red';
+                    if (data.result === 'success' && data.id === 'William5') {
+                        // Enviar comandos al ESP32
+                        fetch('/activate_esp', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('ESP32 Response:', data);
+                            })
+                            .catch(err => {
+                                console.error('Error during ESP32 activation:', err);
+                            });
+                    }
+                })
+                .catch(err => {
+                    console.error('Error during fetch: ', err);
+                });
+            }, 'image/jpeg');
+
+            // Llamar a la función nuevamente después de un pequeño retraso
+            setTimeout(detectFace, 1000); // 1 segundo de retraso entre capturas
+        }
+    </script>
+</body>
+</html>
