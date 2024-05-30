@@ -1,0 +1,82 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Ticker.h> 
+
+const char* ssid = "REPETIDOR MORA";
+const char* password = "1085347316";
+
+ESP8266WebServer server(80);
+
+#define LED_PIN 14       
+#define MOTOR_RIGHT_PIN 5 
+#define MOTOR_LEFT_PIN 4   
+
+Ticker motorTicker;
+bool motorRunning = false;
+bool ledState = false;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(MOTOR_LEFT_PIN, OUTPUT);
+  digitalWrite(MOTOR_LEFT_PIN, LOW);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  pinMode(MOTOR_RIGHT_PIN, OUTPUT);
+  digitalWrite(MOTOR_RIGHT_PIN, LOW);
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Conectando a WiFi...");
+  }
+  Serial.println("Conectado a WiFi");
+  Serial.println("IP asignada: " + WiFi.localIP().toString());
+
+  server.on("/toggle_led", handleToggleLed);
+  server.on("/motor_right", handleMotorRight);
+  server.on("/motor_left", handleMotorLeft);
+  server.begin();
+  Serial.println("Servidor iniciado");
+}
+
+void loop() {
+  server.handleClient();
+}
+
+void handleToggleLed() {
+  ledState = !ledState;
+  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+  String response = ledState ? "LED Encendido" : "LED Apagado";
+  server.send(200, "text/plain", response);
+}
+
+void handleMotorRight() {
+  if (!motorRunning) {
+    motorRunning = true;
+    digitalWrite(MOTOR_RIGHT_PIN, HIGH);
+    delay(180); // Mantener el motor encendido durante 1 segundo
+    digitalWrite(MOTOR_RIGHT_PIN, LOW);
+    motorTicker.attach(1, resetMotor); // Después de 1 segundo, llamar a resetMotor
+    digitalWrite(LED_PIN, HIGH); // Encender el LED
+    String response = "Motor Right Activado";
+    server.send(200, "text/plain", response);
+  } else {
+    String response = "Motor ya está en funcionamiento";
+    server.send(200, "text/plain", response);
+  }
+}
+
+void handleMotorLeft() {
+  motorRunning = false;
+  digitalWrite(MOTOR_LEFT_PIN, HIGH);
+  delay(180); // Mantener el motor encendido durante 1 segundo
+  digitalWrite(MOTOR_LEFT_PIN, LOW);
+  digitalWrite(LED_PIN, LOW); // Apagar el LED
+  motorTicker.detach(); // Detener el ticker
+  String response = "Motor Left Activado";
+  server.send(200, "text/plain", response);
+}
+
+void resetMotor() {
+  handleMotorLeft();
+}
